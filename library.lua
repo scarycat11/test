@@ -21,7 +21,7 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or function() end;
 
 local Repo = 'https://raw.githubusercontent.com/scarycat11/test/main/'
 local FontFolder = 'LinoriaLib'
-local FontName = 'ProggyClean'
+local FontName = 'FsTahoma8px'
 
 local function IsValidFontData(Data)
     if type(Data) ~= 'string' or #Data < 1000 then
@@ -46,7 +46,7 @@ local function LoadCustomFont()
         local JsonPath = FontFolder .. '/' .. FontName .. '.json';
 
         if not (isfile(TtfPath) and IsValidFontData(readfile(TtfPath))) then
-            local Data = game:HttpGet(Repo .. 'Assets/ProggyClean.ttf');
+            local Data = game:HttpGet(Repo .. 'Assets/fs-tahoma-8px.ttf');
             assert(IsValidFontData(Data), 'Downloaded font file is invalid');
             writefile(TtfPath, Data);
         end;
@@ -118,7 +118,7 @@ local Library = {
     Black = Color3.new(0, 0, 0);
     Font = Enum.Font.Code;
     FontFace = CustomFont or Font.fromEnum(Enum.Font.Code);
-    FontSize = CustomFont and 13 or 14;
+    FontSize = CustomFont and 8 or 14;
     TextStroke = true;
 
     OpenedFrames = {};
@@ -3230,11 +3230,10 @@ function Library:CreateWindow(...)
         Tabs = {};
     };
 
-    local Outer = Library:Create('CanvasGroup', {
+    local Outer = Library:Create('Frame', {
         AnchorPoint = Config.AnchorPoint,
         BackgroundColor3 = Color3.new(0, 0, 0);
         BorderSizePixel = 0;
-        GroupTransparency = 1;
         Position = Config.Position,
         Size = Config.Size,
         Visible = false;
@@ -3765,34 +3764,101 @@ function Library:CreateWindow(...)
 
     local Toggled = false;
     local Fading = false;
+    local FadeCache = setmetatable({}, { __mode = 'k' });
+
+    local function GetFadeProperties(Object)
+        if Object:IsA('ImageLabel') or Object:IsA('ImageButton') then
+            return { 'ImageTransparency', 'BackgroundTransparency' };
+        elseif Object:IsA('TextLabel') or Object:IsA('TextBox') or Object:IsA('TextButton') then
+            return { 'TextTransparency', 'BackgroundTransparency' };
+        elseif Object:IsA('Frame') or Object:IsA('ScrollingFrame') then
+            return { 'BackgroundTransparency' };
+        elseif Object:IsA('UIStroke') then
+            return { 'Transparency' };
+        end;
+
+        return nil;
+    end;
+
+    local function CollectFade(Fresh)
+        local Entries = {};
+        local Objects = Outer:GetDescendants();
+        table.insert(Objects, Outer);
+
+        for _, Object in next, Objects do
+            local Properties = GetFadeProperties(Object);
+
+            if Properties then
+                local Cache = FadeCache[Object];
+
+                if not Cache then
+                    Cache = {};
+                    FadeCache[Object] = Cache;
+                end;
+
+                for _, Property in next, Properties do
+                    if Fresh or Cache[Property] == nil then
+                        Cache[Property] = Object[Property];
+                    end;
+
+                    if Cache[Property] < 1 then
+                        table.insert(Entries, { Object, Property, Cache[Property] });
+                    end;
+                end;
+            end;
+        end;
+
+        return Entries;
+    end;
+
+    local function ApplyFade(Entries, Alpha)
+        for _, Entry in next, Entries do
+            Entry[1][Entry[2]] = Entry[3] + (1 - Entry[3]) * (1 - Alpha);
+        end;
+    end;
+
+    local function AnimateFade(Entries, From, To, Duration)
+        if Duration <= 0 then
+            ApplyFade(Entries, To);
+            return;
+        end;
+
+        local Start = os.clock();
+
+        while true do
+            local Progress = math.clamp((os.clock() - Start) / Duration, 0, 1);
+
+            ApplyFade(Entries, From + (To - From) * Progress);
+
+            if Progress >= 1 then
+                break;
+            end;
+
+            RenderStepped:Wait();
+        end;
+    end;
 
     function Library:Toggle()
         if Fading then
             return;
         end;
 
-        local FadeTime = Config.MenuFadeTime;
         Fading = true;
         Toggled = (not Toggled);
         ModalElement.Modal = Toggled;
 
+        local FadeTime = Config.MenuFadeTime;
+        local Entries = CollectFade(not Toggled);
+
         if Toggled then
+            ApplyFade(Entries, 0);
             Outer.Visible = true;
+            AnimateFade(Entries, 0, 1, FadeTime);
         else
             Library:CloseOpenedFrames();
+            AnimateFade(Entries, 1, 0, FadeTime);
+            Outer.Visible = false;
         end;
-
-        if FadeTime > 0 then
-            TweenService:Create(Outer, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), {
-                GroupTransparency = Toggled and 0 or 1;
-            }):Play();
-
-            task.wait(FadeTime);
-        else
-            Outer.GroupTransparency = Toggled and 0 or 1;
-        end;
-
-        Outer.Visible = Toggled;
 
         Fading = false;
     end;
