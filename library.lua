@@ -119,7 +119,7 @@ local Library = {
     Font = Enum.Font.Code;
     FontFace = CustomFont or Font.fromEnum(Enum.Font.Code);
     FontSize = CustomFont and 13 or 14;
-    TextStroke = false;
+    TextStroke = true;
 
     OpenedFrames = {};
     DependencyBoxes = {};
@@ -484,6 +484,16 @@ function Library:GetTextBounds(Text, Font, Size, Resolution)
     TextBoundsCacheCount = TextBoundsCacheCount + 1;
 
     return Bounds.X, Bounds.Y;
+end;
+
+function Library:SetFontSize(Size)
+    Library.FontSize = Size;
+
+    for _, Object in next, ScreenGui:GetDescendants() do
+        if Object:IsA('TextLabel') or Object:IsA('TextBox') then
+            Object.TextSize = Size;
+        end;
+    end;
 end;
 
 function Library:GetDarkerColor(Color)
@@ -932,7 +942,7 @@ do
                 local Button = Library:CreateLabel({
                     Active = false;
                     Size = UDim2.new(1, 0, 0, 15);
-                    TextSize = 13;
+                    TextSize = Library.FontSize;
                     Text = Str;
                     ZIndex = 16;
                     Parent = self.Inner;
@@ -1243,7 +1253,7 @@ do
 
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
-            TextSize = 13;
+            TextSize = Library.FontSize;
             Text = Info.Default;
             TextWrapped = true;
             ZIndex = 8;
@@ -1292,7 +1302,7 @@ do
         local ContainerLabel = Library:CreateLabel({
             TextXAlignment = Enum.TextXAlignment.Left;
             Size = UDim2.new(1, 0, 0, 18);
-            TextSize = 13;
+            TextSize = Library.FontSize;
             Visible = false;
             ZIndex = 110;
             Parent = Library.KeybindContainer;
@@ -1307,7 +1317,7 @@ do
             local Label = Library:CreateLabel({
                 Active = false;
                 Size = UDim2.new(1, 0, 0, 15);
-                TextSize = 13;
+                TextSize = Library.FontSize;
                 Text = Mode;
                 ZIndex = 16;
                 Parent = ModeSelectInner;
