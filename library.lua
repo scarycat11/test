@@ -118,7 +118,7 @@ local Library = {
     Black = Color3.new(0, 0, 0);
     Font = Enum.Font.Code;
     FontFace = CustomFont or Font.fromEnum(Enum.Font.Code);
-    FontSize = CustomFont and 8 or 14;
+    FontSize = CustomFont and 16 or 14;
     TextStroke = true;
 
     OpenedFrames = {};
