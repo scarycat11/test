@@ -19,12 +19,9 @@ local GetGenv = getgenv or function() return _G end;
 local GetAsset = getcustomasset or getsynasset;
 local ProtectGui = protectgui or (syn and syn.protect_gui) or function() end;
 
-----------------------------------------------------------------------
--- Custom font (ProggyClean)
-----------------------------------------------------------------------
-local FONT_URL = 'https://raw.githubusercontent.com/scarycat11/test/main/Assets/ProggyClean.ttf';
-local FONT_FOLDER = 'LinoriaLib';
-local FONT_NAME = 'ProggyClean';
+local Repo = 'https://raw.githubusercontent.com/scarycat11/test/main/'
+local FontFolder = 'LinoriaLib'
+local FontName = 'ProggyClean'
 
 local function IsValidFontData(Data)
     if type(Data) ~= 'string' or #Data < 1000 then
@@ -41,22 +38,21 @@ local function LoadCustomFont()
     end;
 
     local Success, Result = pcall(function()
-        if not isfolder(FONT_FOLDER) then
-            makefolder(FONT_FOLDER);
+        if not isfolder(FontFolder) then
+            makefolder(FontFolder);
         end;
 
-        local TtfPath = FONT_FOLDER .. '/' .. FONT_NAME .. '.ttf';
-        local JsonPath = FONT_FOLDER .. '/' .. FONT_NAME .. '.json';
+        local TtfPath = FontFolder .. '/' .. FontName .. '.ttf';
+        local JsonPath = FontFolder .. '/' .. FontName .. '.json';
 
-        -- Download only when the file is missing or corrupted
         if not (isfile(TtfPath) and IsValidFontData(readfile(TtfPath))) then
-            local Data = game:HttpGet(FONT_URL);
+            local Data = game:HttpGet(Repo .. 'Assets/ProggyClean.ttf');
             assert(IsValidFontData(Data), 'Downloaded font file is invalid');
             writefile(TtfPath, Data);
         end;
 
         writefile(JsonPath, HttpService:JSONEncode({
-            name = FONT_NAME;
+            name = FontName;
             faces = {
                 {
                     name = 'Regular';
@@ -80,9 +76,6 @@ end;
 
 local CustomFont = LoadCustomFont();
 
-----------------------------------------------------------------------
--- ScreenGui
-----------------------------------------------------------------------
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 
@@ -123,10 +116,12 @@ local Library = {
     RiskColor = Color3.fromRGB(255, 50, 50);
 
     Black = Color3.new(0, 0, 0);
-    Font = Enum.Font.Code; -- fallback enum font
+    Font = Enum.Font.Code;
     FontFace = CustomFont or Font.fromEnum(Enum.Font.Code);
+    FontSize = CustomFont and 13 or 14;
+    TextStroke = false;
 
-    OpenedFrames = {}; -- [Frame] = closeFunction
+    OpenedFrames = {};
     DependencyBoxes = {};
 
     Signals = {};
@@ -201,7 +196,6 @@ function Library:SafeCallback(f, ...)
     end;
 end;
 
--- Debounced: typing in a textbox no longer writes the config file on every keystroke
 local SaveToken = 0;
 
 function Library:AttemptSave()
@@ -238,6 +232,10 @@ end;
 function Library:ApplyTextStroke(Inst)
     Inst.TextStrokeTransparency = 1;
 
+    if not Library.TextStroke then
+        return;
+    end;
+
     Library:Create('UIStroke', {
         Color = Color3.new(0, 0, 0);
         Thickness = 1;
@@ -251,7 +249,7 @@ function Library:CreateLabel(Properties, IsHud)
         BackgroundTransparency = 1;
         FontFace = Library.FontFace;
         TextColor3 = Library.FontColor;
-        TextSize = 16;
+        TextSize = Library.FontSize;
         TextStrokeTransparency = 0;
     });
 
@@ -264,7 +262,6 @@ function Library:CreateLabel(Properties, IsHud)
     return Library:Create(_Instance, Properties);
 end;
 
--- Event based dragging (no polling loop)
 function Library:MakeDraggable(Frame, Cutoff)
     Frame.Active = true;
 
@@ -306,7 +303,7 @@ function Library:MakeDraggable(Frame, Cutoff)
 end;
 
 function Library:AddToolTip(InfoStr, HoverInstance)
-    local X, Y = Library:GetTextBounds(InfoStr, Library.FontFace, 14);
+    local X, Y = Library:GetTextBounds(InfoStr, Library.FontFace, Library.FontSize);
     local Tooltip = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor,
         BorderColor3 = Library.OutlineColor,
@@ -321,7 +318,7 @@ function Library:AddToolTip(InfoStr, HoverInstance)
     Library:CreateLabel({
         Position = UDim2.fromOffset(3, 1),
         Size = UDim2.fromOffset(X, Y);
-        TextSize = 14;
+        TextSize = Library.FontSize;
         Text = InfoStr,
         TextColor3 = Library.FontColor,
         TextXAlignment = Enum.TextXAlignment.Left;
@@ -443,7 +440,6 @@ function Library:MapValue(Value, MinA, MaxA, MinB, MaxB)
     return (1 - ((Value - MinA) / (MaxA - MinA))) * MinB + ((Value - MinA) / (MaxA - MinA)) * MaxB;
 end;
 
--- Cached text measurement that supports the custom FontFace
 local TextBoundsCache = {};
 local TextBoundsCacheCount = 0;
 
@@ -473,7 +469,6 @@ function Library:GetTextBounds(Text, Font, Size, Resolution)
     end);
 
     if not Success or typeof(Bounds) ~= 'Vector2' then
-        -- Fallback to the engine font so the UI never breaks
         local Width = math.clamp(Resolution.X, 1, 100000);
         Bounds = TextService:GetTextSize(Text, Size, Enum.Font.Code, Vector2.new(Width, 100000));
 
@@ -497,7 +492,6 @@ function Library:GetDarkerColor(Color)
 end;
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor);
 
--- Registry uses swap-remove so removing instances is O(1)
 function Library:AddToRegistry(Instance, Properties, IsHud)
     if Library.RegistryMap[Instance] then
         Library:RemoveFromRegistry(Instance);
@@ -560,7 +554,6 @@ function Library:UpdateColorsUsingRegistry()
 end;
 
 function Library:GiveSignal(Signal)
-    -- Only used for signals not attached to library instances, as those should be cleaned up on object destruction by Roblox
     table.insert(Library.Signals, Signal);
 end;
 
@@ -628,7 +621,6 @@ do
             Parent = ToggleLabel;
         });
 
-        -- Transparency image taken from https://github.com/matas3535/SplixPrivateDrawingLibrary/blob/main/Library.lua
         Library:Create('ImageLabel', {
             BorderSizePixel = 0;
             Size = UDim2.new(0, 27, 0, 13);
@@ -653,7 +645,6 @@ do
             PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18);
         end;
 
-        -- Only reposition while visible (avoids work while dragging the window)
         DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
             if PickerFrameOuter.Visible then
                 UpdatePickerPosition();
@@ -781,7 +772,7 @@ do
             PlaceholderText = 'Hex color',
             Text = '#FFFFFF',
             TextColor3 = Library.FontColor;
-            TextSize = 14;
+            TextSize = Library.FontSize;
             TextStrokeTransparency = 0;
             TextXAlignment = Enum.TextXAlignment.Left;
             ZIndex = 20,
@@ -848,7 +839,7 @@ do
             Size = UDim2.new(1, 0, 0, 14);
             Position = UDim2.fromOffset(5, 5);
             TextXAlignment = Enum.TextXAlignment.Left;
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = ColorPicker.Title,
             TextWrapped = false;
             ZIndex = 16;
@@ -1214,7 +1205,7 @@ do
         local KeyPicker = {
             Value = Info.Default;
             Toggled = false;
-            Mode = Info.Mode or 'Toggle'; -- Always, Toggle, Hold
+            Mode = Info.Mode or 'Toggle';
             Type = 'KeyPicker';
             Callback = Info.Callback or function(Value) end;
             ChangedCallback = Info.ChangedCallback or function(New) end;
@@ -1368,7 +1359,6 @@ do
             local State = KeyPicker:GetState();
             local Text = string.format('[%s] %s (%s)', tostring(KeyPicker.Value), tostring(Info.Text or ''), tostring(KeyPicker.Mode));
 
-            -- Nothing changed, skip the (relatively expensive) relayout
             if Text == LastText and State == LastState then
                 return;
             end;
@@ -1498,7 +1488,6 @@ do
                             return;
                         end;
 
-                        -- Escape clears the bind
                         Key = PickInput.KeyCode == Enum.KeyCode.Escape and 'None' or PickInput.KeyCode.Name;
                     elseif PickInput.UserInputType == Enum.UserInputType.MouseButton1 then
                         Key = 'MB1';
@@ -1519,7 +1508,6 @@ do
 
                     Library:AttemptSave();
 
-                    -- Defer so the key that was just picked doesn't also trigger the bind
                     task.defer(function()
                         Picking = false;
                         KeyPicker:Update();
@@ -1605,7 +1593,7 @@ do
 
         local TextLabel = Library:CreateLabel({
             Size = UDim2.new(1, -4, 0, 15);
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = Text;
             TextWrapped = DoesWrap or false,
             TextXAlignment = Enum.TextXAlignment.Left;
@@ -1620,7 +1608,7 @@ do
                 Width = 220;
             end;
 
-            return select(2, Library:GetTextBounds(Str, Library.FontFace, 14, Vector2.new(Width, math.huge)));
+            return select(2, Library:GetTextBounds(Str, Library.FontFace, Library.FontSize, Vector2.new(Width, math.huge)));
         end;
 
         if DoesWrap then
@@ -1701,7 +1689,7 @@ do
 
             local Label = Library:CreateLabel({
                 Size = UDim2.new(1, 0, 1, 0);
-                TextSize = 14;
+                TextSize = Library.FontSize;
                 Text = Btn.Text;
                 ZIndex = 6;
                 Parent = Inner;
@@ -1901,7 +1889,7 @@ do
 
         Library:CreateLabel({
             Size = UDim2.new(1, 0, 0, 15);
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
             ZIndex = 5;
@@ -1973,7 +1961,7 @@ do
 
             Text = Info.Default or '';
             TextColor3 = Library.FontColor;
-            TextSize = 14;
+            TextSize = Library.FontSize;
             TextStrokeTransparency = 0;
             TextXAlignment = Enum.TextXAlignment.Left;
 
@@ -2015,27 +2003,20 @@ do
             end);
         end;
 
-        -- https://devforum.roblox.com/t/how-to-make-textboxes-follow-current-cursor-position/1368429/6
-        -- thank you nicemike40 :)
         local function Update()
             local PADDING = 2;
             local reveal = ClipFrame.AbsoluteSize.X;
 
             if not Box:IsFocused() or Box.TextBounds.X <= reveal - 2 * PADDING then
-                -- we aren't focused, or we fit so be normal
                 Box.Position = UDim2.new(0, PADDING, 0, 0);
             else
-                -- we are focused and don't fit, so adjust position
                 local cursor = Box.CursorPosition;
                 if cursor ~= -1 then
-                    -- calculate pixel width of text from start to cursor
                     local subtext = string.sub(Box.Text, 1, cursor - 1);
                     local width = Library:GetTextBounds(subtext, Library.FontFace, Box.TextSize, Vector2.new(math.huge, math.huge));
 
-                    -- check if we're inside the box with the cursor
                     local currentCursorPos = Box.Position.X.Offset + width;
 
-                    -- adjust if necessary
                     if currentCursorPos < PADDING then
                         Box.Position = UDim2.fromOffset(PADDING - width, 0);
                     elseif currentCursorPos > reveal - PADDING - 1 then
@@ -2113,7 +2094,7 @@ do
         local ToggleLabel = Library:CreateLabel({
             Size = UDim2.new(0, 216, 1, 0);
             Position = UDim2.new(1, 6, 0, 0);
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = Info.Text;
             TextXAlignment = Enum.TextXAlignment.Left;
             ZIndex = 6;
@@ -2230,7 +2211,7 @@ do
         if not Info.Compact then
             Library:CreateLabel({
                 Size = UDim2.new(1, 0, 0, 10);
-                TextSize = 14;
+                TextSize = Library.FontSize;
                 Text = Info.Text;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 TextYAlignment = Enum.TextYAlignment.Bottom;
@@ -2295,7 +2276,7 @@ do
 
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = 'Infinite';
             ZIndex = 9;
             Parent = SliderInner;
@@ -2378,7 +2359,6 @@ do
                     local nValue = Slider:GetValueFromXOffset(nX);
                     local OldValue = Slider.Value;
 
-                    -- Only touch the UI / fire callbacks when the value really changed
                     if nValue ~= OldValue then
                         Slider.Value = nValue;
                         Slider:Display();
@@ -2424,7 +2404,7 @@ do
             Value = Info.Multi and {};
             Multi = Info.Multi;
             Type = 'Dropdown';
-            SpecialType = Info.SpecialType; -- can be either 'Player' or 'Team'
+            SpecialType = Info.SpecialType;
             Callback = Info.Callback or function(Value) end;
         };
 
@@ -2434,7 +2414,7 @@ do
         if not Info.Compact then
             Library:CreateLabel({
                 Size = UDim2.new(1, 0, 0, 10);
-                TextSize = 14;
+                TextSize = Library.FontSize;
                 Text = Info.Text;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 TextYAlignment = Enum.TextYAlignment.Bottom;
@@ -2493,7 +2473,7 @@ do
         local ItemList = Library:CreateLabel({
             Position = UDim2.new(0, 5, 0, 0);
             Size = UDim2.new(1, -5, 1, 0);
-            TextSize = 14;
+            TextSize = Library.FontSize;
             Text = '--';
             TextXAlignment = Enum.TextXAlignment.Left;
             TextWrapped = true;
@@ -2661,7 +2641,7 @@ do
                     Active = false;
                     Size = UDim2.new(1, -6, 1, 0);
                     Position = UDim2.new(0, 6, 0, 0);
-                    TextSize = 14;
+                    TextSize = Library.FontSize;
                     Text = Value;
                     TextXAlignment = Enum.TextXAlignment.Left;
                     ZIndex = 25;
@@ -2700,7 +2680,6 @@ do
                     if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                         local Try = not Selected;
 
-                        -- Don't allow deselecting the last value unless AllowNull is set
                         if (not Try) and CountSelected() <= 1 and (not Info.AllowNull) then
                             return;
                         end;
@@ -2754,7 +2733,6 @@ do
             if NewValues then
                 Dropdown.Values = NewValues;
 
-                -- Drop selections that no longer exist in the new list
                 if Info.Multi then
                     for Value, _ in next, Dropdown.Value do
                         if not table.find(NewValues, Value) then
@@ -2867,7 +2845,6 @@ do
             end;
         end;
 
-        -- Built once, after defaults are applied
         Dropdown:BuildDropdownList();
 
         Groupbox:AddBlank(Info.BlankSize or 5);
@@ -2958,7 +2935,6 @@ do
     BaseGroupbox.__index = Funcs;
 end;
 
--- < Create other UI elements >
 do
     Library.NotificationArea = Library:Create('Frame', {
         BackgroundTransparency = 1;
@@ -3027,7 +3003,7 @@ do
     local WatermarkLabel = Library:CreateLabel({
         Position = UDim2.new(0, 5, 0, 0);
         Size = UDim2.new(1, -4, 1, 0);
-        TextSize = 14;
+        TextSize = Library.FontSize;
         TextXAlignment = Enum.TextXAlignment.Left;
         ZIndex = 203;
         Parent = InnerFrame;
@@ -3112,7 +3088,7 @@ function Library:SetWatermarkVisibility(Bool)
 end;
 
 function Library:SetWatermark(Text)
-    local X, Y = Library:GetTextBounds(Text, Library.FontFace, 14);
+    local X, Y = Library:GetTextBounds(Text, Library.FontFace, Library.FontSize);
     Library.Watermark.Size = UDim2.new(0, X + 15, 0, (Y * 1.5) + 3);
     Library:SetWatermarkVisibility(true);
 
@@ -3122,7 +3098,7 @@ end;
 function Library:Notify(Text, Time)
     Text = tostring(Text);
 
-    local XSize, YSize = Library:GetTextBounds(Text, Library.FontFace, 14);
+    local XSize, YSize = Library:GetTextBounds(Text, Library.FontFace, Library.FontSize);
 
     YSize = YSize + 7;
 
@@ -3181,7 +3157,7 @@ function Library:Notify(Text, Time)
         Size = UDim2.new(1, -4, 1, 0);
         Text = Text;
         TextXAlignment = Enum.TextXAlignment.Left;
-        TextSize = 14;
+        TextSize = Library.FontSize;
         ZIndex = 103;
         Parent = InnerFrame;
     });
@@ -3244,8 +3220,6 @@ function Library:CreateWindow(...)
         Tabs = {};
     };
 
-    -- CanvasGroup lets the whole menu fade with a single tween
-    -- instead of creating a tween for every descendant on each toggle.
     local Outer = Library:Create('CanvasGroup', {
         AnchorPoint = Config.AnchorPoint,
         BackgroundColor3 = Color3.new(0, 0, 0);
@@ -3351,7 +3325,7 @@ function Library:CreateWindow(...)
             Tabboxes = {};
         };
 
-        local TabButtonWidth = Library:GetTextBounds(Name, Library.FontFace, 16);
+        local TabButtonWidth = Library:GetTextBounds(Name, Library.FontFace, Library.FontSize);
 
         local TabButton = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
@@ -3398,7 +3372,6 @@ function Library:CreateWindow(...)
             Parent = TabContainer;
         });
 
-        -- Height now follows the window size instead of a hardcoded 509px
         local LeftSide = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
             BorderSizePixel = 0;
@@ -3444,7 +3417,6 @@ function Library:CreateWindow(...)
                 OtherTab:HideTab();
             end;
 
-            -- Dropdowns / pickers float above the window, close them when switching tabs
             Library:CloseOpenedFrames();
 
             Blocker.BackgroundTransparency = 0;
@@ -3509,7 +3481,7 @@ function Library:CreateWindow(...)
             Library:CreateLabel({
                 Size = UDim2.new(1, 0, 0, 18);
                 Position = UDim2.new(0, 4, 0, 2);
-                TextSize = 14;
+                TextSize = Library.FontSize;
                 Text = Info.Name;
                 TextXAlignment = Enum.TextXAlignment.Left;
                 ZIndex = 5;
@@ -3637,7 +3609,7 @@ function Library:CreateWindow(...)
 
                 Library:CreateLabel({
                     Size = UDim2.new(1, 0, 1, 0);
-                    TextSize = 14;
+                    TextSize = Library.FontSize;
                     Text = TabName;
                     TextXAlignment = Enum.TextXAlignment.Center;
                     ZIndex = 7;
@@ -3738,7 +3710,6 @@ function Library:CreateWindow(...)
                 SubTab:AddBlank(3);
                 SubTab:Resize();
 
-                -- Show first tab (number is 2 cus of the UIListLayout that also sits in that instance)
                 if #TabboxButtons:GetChildren() == 2 then
                     SubTab:Show();
                 end;
@@ -3765,7 +3736,6 @@ function Library:CreateWindow(...)
             end;
         end);
 
-        -- This was the first tab added, so we show it by default.
         if #TabContainer:GetChildren() == 1 then
             Tab:ShowTab();
         end;
@@ -3799,7 +3769,6 @@ function Library:CreateWindow(...)
         if Toggled then
             Outer.Visible = true;
         else
-            -- Floating dropdowns / color pickers live outside the window, close them
             Library:CloseOpenedFrames();
         end;
 
